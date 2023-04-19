@@ -1,0 +1,73 @@
+version: '3'
+
+services:
+  rabbitmq:
+    image: rabbitmq:3-management
+    container_name: rabbitmq
+    restart: always
+    networks:
+      - rabbitmq-net
+
+  producer:
+    build:
+      context: ./producer
+    image: producer
+    container_name: producer
+    restart: always
+    depends_on:
+      - rabbitmq
+    networks:
+      - app-net
+      - rabbitmq-net
+
+  health-check:
+    build:
+      context: ./consumer_one
+    image: consumer_one
+    container_name: consumer_one
+    restart: always
+    depends_on:
+      - rabbitmq
+    networks:
+      - app-net
+      - rabbitmq-net
+
+  insert-student:
+    build:
+      context: ./consumer_two
+    image: consumer_two
+    container_name: consumer_two
+    restart: always
+    depends_on:
+      - rabbitmq
+    networks:
+      - app-net
+      - rabbitmq-net
+
+  delete-student:
+    build:
+      context: ./consumer_three
+    image: consumer_three
+    container_name: consumer_three
+    restart: always
+    depends_on:
+      - rabbitmq
+    networks:
+      - app-net
+      - rabbitmq-net
+
+  retrieve-student:
+    build:
+      context: ./consumer_four
+    image: consumer_four
+    container_name: consumer_four
+    restart: always
+    depends_on:
+      - rabbitmq
+    networks:
+      - app-net
+      - rabbitmq-net
+
+networks:
+  rabbitmq-net:
+  app-net:
