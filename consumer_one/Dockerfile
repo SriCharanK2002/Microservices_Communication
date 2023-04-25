@@ -1,11 +1,6 @@
-FROM python:3.9-slim-buster
-
-WORKDIR /app
-
-COPY requirements.txt .
-
-RUN pip install --no-cache-dir -r requirements.txt
-
-COPY . .
-
-CMD ["python", "healthcheck.py"]
+FROM library/python:3.6-stretch
+RUN pip3 install pika
+WORKDIR /healthcheck
+COPY . /healthcheck
+ENTRYPOINT [ "python3" ]
+CMD [ "healthcheck.py" ]

@@ -1,37 +1,38 @@
 import pika
-import json
-from pymongo import MongoClient
+import time
+from flask import Flask, request, jsonify
+# from flask_pymongo import PyMongo
+import certifi
+from pymongo.mongo_client import MongoClient
 
-# Connect to the MongoDB database
-client = MongoClient('mongodb://mongodb:27017/')
-db = client['Student']
+app = Flask(__name__)
 
-# Establish a connection with RabbitMQ server
-connection = pika.BlockingConnection(
-    pika.ConnectionParameters(host='rabbitmq'))
-
-channel = connection.channel()
-
-# Declare the queue
-channel.queue_declare(queue='students')
-
-
-# Define a function to handle database insertion
-def insert_to_db(data):
-    db.students.insert_one(data)
-    print("Inserted student record:", data)
-
-
-# Define a callback function to handle incoming messages
 def callback(ch, method, properties, body):
-    data = json.loads(body.decode('utf-8'))
-    insert_to_db(data)
+    b = body.decode()
+    b = b.split(".")
+    dict1 = {"SRN": b[0],"Name":b[1],"Section":b[2]}
+    collection.insert_one(dict1)
+    ch.basic_ack(delivery_tag=method.delivery_tag)
+    return "Student saved successfully!"
 
-
-# Consume messages from the queue
-channel.basic_consume(queue='students', on_message_callback=callback, auto_ack=True)
-
-print("Waiting for messages...")
-
-# Start consuming messages
-channel.start_consuming()
+# uri = "mongodb+srv://vidisha:vidisha@cc.cybmvzj.mongodb.net/studentdb?retryWrites=true&w=majority"
+uri = 'mongodb+srv://charan:charan@cc-project.fgyiawm.mongodb.net/test'
+try:
+    client = MongoClient(uri,tlsCAFile=certifi.where())
+    db = client['studentdb']
+    collection = db["student"]
+    sleepTime = 20
+    time.sleep(sleepTime)
+    print('Consumer_two connecting to server ...')
+    
+    connection = pika.BlockingConnection(pika.ConnectionParameters(host='rabbitmq'))
+    channel = connection.channel()
+    channel.queue_declare(queue='insert_record', durable=True)
+    
+    channel.basic_qos(prefetch_count=1)
+    channel.basic_consume(queue='insert_record', on_message_callback=callback)
+    channel.start_consuming()
+except Exception as e:
+    print(f"Error connecting to MongoDB: {str(e)}")
+finally:
+    client.close()

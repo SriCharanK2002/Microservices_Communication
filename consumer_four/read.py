@@ -1,46 +1,31 @@
 import pika
-import os
-import pymongo
+import time
+from flask import Flask, request, jsonify
+from flask_pymongo import PyMongo
+import certifi
+from pymongo.mongo_client import MongoClient
 
-mongo_host = os.environ.get("MONGO_HOST", "localhost")
-mongo_port = int(os.environ.get("MONGO_PORT", "27017"))
-
-mongo_client = pymongo.MongoClient(host=mongo_host, port=mongo_port)
-mongo_db = mongo_client["Student"]
-mongo_collection = mongo_db["students"]
+app = Flask(__name__)
+# uri = "mongodb+srv://vidisha:vidisha@cc.cybmvzj.mongodb.net/studentdb?retryWrites=true&w=majority"
+uri = 'mongodb+srv://charan:charan@cc-project.fgyiawm.mongodb.net/test'
+# client = MongoClient("mongodb://localhost:27017",port=27017)
+client = MongoClient(uri,tlsCAFile=certifi.where())
+db = client['studentdb']
+collection = db["student"]
+sleepTime = 20
+time.sleep(sleepTime)
+print('Consumer_four connecting to server ...')
+connection = pika.BlockingConnection(pika.ConnectionParameters(host='rabbitmq'))
+channel = connection.channel()
+channel.queue_declare(queue='read_database', durable=True)
 
 def callback(ch, method, properties, body):
-    srn = body.decode('utf-8')
-    student = mongo_collection.find_one({'SRN': srn})
-    if student is None:
-        print("Student with SRN {} not found".format(srn))
-    else:
-        print("Student Details:")
-        print("SRN: ", student['SRN'])
-        print("Name: ", student['Name'])
-        print("Program: ", student['Program'])
-        print("Email: ", student['Email'])
+    ans = collection.find({})
+    for document in ans:
+        print(document)
+    ch.basic_ack(delivery_tag=method.delivery_tag)
+    return "Database read"
 
-def main():
-    rabbitmq_host = os.environ.get("RABBITMQ_HOST", "rabbitmq")
-    rabbitmq_port = int(os.environ.get("RABBITMQ_PORT", "5672"))
-    rabbitmq_username = os.environ.get("RABBITMQ_USERNAME", "guest")
-    rabbitmq_password = os.environ.get("RABBITMQ_PASSWORD", "guest")
-
-    credentials = pika.PlainCredentials(rabbitmq_username, rabbitmq_password)
-    parameters = pika.ConnectionParameters(rabbitmq_host,
-                                           rabbitmq_port,
-                                           '/',
-                                           credentials)
-    connection = pika.BlockingConnection(parameters)
-    channel = connection.channel()
-
-    channel.queue_declare(queue='read')
-
-    channel.basic_consume(queue='read', on_message_callback=callback, auto_ack=True)
-
-    print(' [*] Waiting for messages. To exit press CTRL+C')
-    channel.start_consuming()
-
-if __name__ == '__main__':
-    main()
+channel.basic_qos(prefetch_count=1)
+channel.basic_consume(queue='read_database', on_message_callback=callback)
+channel.start_consuming()

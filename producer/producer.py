@@ -1,37 +1,77 @@
+from flask import Flask
 import pika
-import json
-from pymongo import MongoClient
 
-# Connect to the MongoDB database
-client = MongoClient('mongodb://mongodb:27017/')
-db = client['Student']
+app = Flask(__name__)
 
-# Establish a connection with RabbitMQ server
-connection = pika.BlockingConnection(
-    pika.ConnectionParameters(host='rabbitmq'))
-
-channel = connection.channel()
-
-# Declare the queue
-channel.queue_declare(queue='students')
+@app.route('/')
+def index():
+    return 'OK'
 
 
-# Define a function to handle database insertion
-def insert_to_db(data):
-    db.students.insert_one(data)
-    print("Inserted student record:", data)
+@app.route('/healthcheck')
+def Ack():
+    connection = pika.BlockingConnection(pika.ConnectionParameters(host='rabbitmq'))
+    channel = connection.channel()
+    channel.queue_declare(queue='health_check', durable=True)
+    channel.basic_publish(
+        exchange='',
+        routing_key='health_check',
+        body="Health check message sent",
+        properties=pika.BasicProperties(
+            delivery_mode=2,  # make message persistent
+        ))
+    connection.close()
+    print("Health check message sent")
+    return "Health check message sent\n"
 
+@app.route('/insert_record/<SRN>/<Name>/<Section>', methods=["POST"])
+def insert_record(SRN,Name,Section):
+    connection = pika.BlockingConnection(pika.ConnectionParameters(host='rabbitmq'))
+    b= SRN+"."+Name+"."+Section
+    channel = connection.channel()
+    channel.queue_declare(queue='insert_record', durable=True)
+    channel.basic_publish(
+        exchange='',
+        routing_key='insert_record',
+        body= b,
+        properties=pika.BasicProperties(
+            delivery_mode=2,  # make message persistent
+        ))
+    connection.close()
+    print(" Message to insert record sent")
+    return " Message to insert record sent " 
 
-# Define a function to handle incoming messages
-def callback(ch, method, properties, body):
-    data = json.loads(body.decode('utf-8'))
-    insert_to_db(data)
+@app.route('/delete_record/<SRN>', methods=["GET"])
+def delete_record(SRN):
+    connection = pika.BlockingConnection(pika.ConnectionParameters(host='rabbitmq'))
+    b= SRN
+    channel = connection.channel()
+    channel.queue_declare(queue='delete_record', durable=True)
+    channel.basic_publish(
+        exchange='',
+        routing_key='delete_record',
+        body= b,
+        properties=pika.BasicProperties(
+            delivery_mode=2,  # make message persistent
+        ))
+    connection.close()
+    print(" Message to delete record sent")
+    return " Message to delete record sent " 
 
-
-# Consume messages from the queue
-channel.basic_consume(queue='students', on_message_callback=callback, auto_ack=True)
-
-print("Waiting for messages...")
-
-# Start consuming messages
-channel.start_consuming()
+@app.route('/read_database/', methods=["GET"])
+def read_database():
+    connection = pika.BlockingConnection(pika.ConnectionParameters(host='rabbitmq'))
+    channel = connection.channel()
+    channel.queue_declare(queue='read_database', durable=True)
+    channel.basic_publish(
+        exchange='',
+        routing_key='read_database',
+        body="Read Database message sent",
+        properties=pika.BasicProperties(
+            delivery_mode=2,  # make message persistent
+        ))
+    connection.close()
+    print(" Message to retrieve all records sent")
+    return " Message to retrieve all records sent " 
+if __name__ == '__main__':
+    app.run(debug=True, host='0.0.0.0')
